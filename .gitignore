@@ -1,0 +1,6 @@
+key
+*.order
+*.symvers
+*.mod*
+.ko*
+.kdev4/

@@ -1,0 +1,115 @@
+#!/bin/bash
+#
+# usptomo-tweet.sh: twitterにメッセージを投げるシェルスクリプト
+#
+# written by R.Ueda (USP友の会) 20130916
+#
+# The MIT License
+#
+# Copyright (C) 2013-2015 Ryuichi Ueda
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+# 参考：http://www.kuropug.com/Shellscriptter/top.html
+
+#中間ファイルの場所（/tmpが気にくわなければ他に変えること）
+tmp=/tmp/$$
+[ -z "$*" ] && exit 1
+
+###################################
+#変数の設定
+
+#場所やファイル名はお好みで
+source /etc/dev_twitter
+
+#以下のファイルから変数が読み込まれます。
+#+++twitter.key+++++++++++++++++++++++++++++++++++++++++++
+#CONSUMER_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
+#CONSUMER_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+#ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+#ACCESS_TOKEN_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#エンコーディングルール
+enc () {
+	nkf -wMQx | sed 's/=$//' | tr '=' '%' | tr -d '\n' |
+	sed -e 's/%7E/~/g' -e 's/%5F/_/g' -e 's/%2D/-/g' -e 's/%2E/./g'
+}
+
+#送信先
+URL=https://api.twitter.com/1.1/statuses/update.json
+ENC_URL=$(enc <<< "$URL")
+
+#ツイートの読み込みとエンコード
+TW=$(enc <<< "$*")
+
+############################################
+#パラメータ設定
+cat << FIN > $tmp-params
+oauth_consumer_key $CONSUMER_KEY
+oauth_nonce $(date +%s%N)
+oauth_signature_method HMAC-SHA1
+oauth_timestamp $(date +%s)
+oauth_token $ACCESS_TOKEN
+oauth_version 1.0
+status $TW
+FIN
+
+###############################################
+#oauthシグネチャを作る
+
+#署名キーを作成
+echo "POST&"${ENC_URL}"&" > $tmp-head
+
+sort $tmp-params		|
+#行末に%26（アンド）をつけ、空白を%3D（イコール）に変換
+sed -e 's/$/\&/' -e 's/ /=/'	|
+enc				|
+#一番最後の&をとる
+sed 's/%26$//'			|
+#頭に署名キーをつける
+cat $tmp-head -			|
+#改行が一個入ってしまうので取る
+tr -d '\n'			|
+#エンコード
+openssl sha1 -hmac $CONSUMER_SECRET'&'$ACCESS_TOKEN_SECRET -binary	|
+openssl base64			> $tmp-key
+
+###############################################
+#ヘッダ文字列の作成
+
+enc < $tmp-key						|
+awk '{print "oauth_signature",$0}' 			|
+cat $tmp-params -					|
+grep -v "^status"					|
+sort							|
+#項目 値の並びを改行して縦一列に並び替える
+tr ' ' '\n'						|
+#縦一列を今度は横一列にして 項目=値,項目=値,...の形式に
+awk 'NR%2==1{print $1 "="}NR%2==0{print $1 ","}'	|
+tr -d '\n'						|
+#一番最後のカンマが余計
+sed 's/,$//' 	> $tmp-header-str
+
+#########################################
+#出力!
+curl -H "Authorization: OAuth $(cat $tmp-header-str)" \
+     -d "status=$TW" "$URL"
+
+rm -f $tmp-*
