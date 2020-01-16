@@ -11,7 +11,7 @@ A module to make the /dev/twitter
 
 * build-essential
 * kernel-header
-* nkj(Network Kanji Filter)( https://ja.osdn.net/projects/nkf/ )
+* nkf(Network Kanji Filter)( https://ja.osdn.net/projects/nkf/ )
 * curl
 * jq
 * openssl
