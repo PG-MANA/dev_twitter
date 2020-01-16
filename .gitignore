@@ -2,5 +2,7 @@ key
 *.order
 *.symvers
 *.mod*
-.ko*
+dev_twitter.ko
+dev_twitter.o
 .kdev4/
+.dev_twitter.*
