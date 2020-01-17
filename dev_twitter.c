@@ -94,4 +94,4 @@ static void dev_twitter_exit(void) {
 
 module_init(dev_twitter_init);
 module_exit(dev_twitter_exit);
-MODULE_LICENSE("Apache-2.0");
+MODULE_LICENSE("MIT");
