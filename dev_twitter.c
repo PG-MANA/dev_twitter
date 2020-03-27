@@ -73,7 +73,6 @@ static int release(struct inode *inode, struct file *file) {
           }
         }
       }
-      printk(tw_buf->buffer + start_pointer);
       char *argv[] = {"/usr/local/bin/usptomo-tweet",
                       tw_buf->buffer + start_pointer, NULL};
       char *envp[] = {"HOME=/", "TERM=linux",
@@ -104,17 +103,18 @@ static ssize_t write(struct file *file, const char __user *buf, size_t count,
                      loff_t *f_pos) {
   struct tweet_buffer *tw_buf;
   char *new_buffer;
+  unsigned int new_buffer_size;
 
   tw_buf = file->private_data;
   if (count + tw_buf->pointer >= tw_buf->buffer_size) {
-    new_buffer = krealloc(tw_buf->buffer,
-                          tw_buf->buffer_size + INITAL_TWEET_BUFFER_SIZE, GFP_KERNEL);
+    new_buffer_size = count + tw_buf->pointer + INITAL_TWEET_BUFFER_SIZE;
+    new_buffer = krealloc(tw_buf->buffer, new_buffer_size, GFP_KERNEL);
     if (new_buffer == NULL) {
       printk(KERN_WARNING "Cannout alloc Buffer.\n");
       return -EFAULT;
     }
     tw_buf->buffer = new_buffer;
-    tw_buf->buffer_size += INITAL_TWEET_BUFFER_SIZE;
+    tw_buf->buffer_size = new_buffer_size;
   }
   if (raw_copy_from_user(tw_buf->buffer + tw_buf->pointer, buf, count) != 0) {
     return -EFAULT;
